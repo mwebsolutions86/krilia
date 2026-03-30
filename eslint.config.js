@@ -6,7 +6,8 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // 👇 ON DEMANDE À ESLINT D'IGNORER LE CODE GÉNÉRÉ PAR SHADCN 👇
+  globalIgnores(['dist', 'src/components/ui/**']), 
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -18,6 +19,12 @@ export default defineConfig([
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+    },
+    rules: {
+      'react-refresh/only-export-components': [
+        'warn',
+        { allowConstantExport: true },
+      ],
     },
   },
 ])
