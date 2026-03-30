@@ -7,25 +7,49 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { uploadAndCompressImage } from '@/services/storage';
 import { createApartment, updateApartment, getActiveApartments, type Apartment } from '@/services/apartment';
-// NOUVEAU : Import de l'icône Star
-import { Loader2, UploadCloud, Image as ImageIcon, Edit, Plus, X, Star } from 'lucide-react';
+import { translatePropertySecurely } from '@/services/ai'; // 🪄 IMPORT DU SERVICE IA
+import { 
+  Loader2, 
+  UploadCloud, 
+  Image as ImageIcon, 
+  Edit, 
+  Plus, 
+  X, 
+  Star, 
+  Sparkles 
+} from 'lucide-react';
 import { toast } from 'sonner';
+
+
 
 export default function Properties() {
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false); // État pour l'IA
   const [uploadProgress, setUploadProgress] = useState('');
   
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // ÉTATS DES CHAMPS (FR)
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
-  const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
+  
+  // ÉTATS DES TRADUCTIONS (EN / AR)
+  const [titleEn, setTitleEn] = useState('');
+  const [titleAr, setTitleAr] = useState('');
+  const [locationEn, setLocationEn] = useState('');
+  const [locationAr, setLocationAr] = useState('');
+  const [descriptionEn, setDescriptionEn] = useState('');
+  const [descriptionAr, setDescriptionAr] = useState('');
+
+  const [price, setPrice] = useState('');
   const [amenitiesStr, setAmenitiesStr] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+
+  
 
   useEffect(() => {
     async function loadInitialData() {
@@ -35,21 +59,58 @@ export default function Properties() {
     loadInitialData();
   }, []);
 
+  // 🪄 FONCTION DE TRADUCTION AUTOMATIQUE
+  const handleAutoTranslate = async () => {
+    if (!title || !description || !location) {
+      toast.error("Remplissez d'abord les champs en français.");
+      return;
+    }
+
+    setIsTranslating(true);
+    try {
+      const translations = await translatePropertySecurely({ title, description, location });
+      
+      setTitleEn(translations.title_en);
+      setTitleAr(translations.title_ar);
+      setLocationEn(translations.location_en);
+      setLocationAr(translations.location_ar);
+      setDescriptionEn(translations.description_en);
+      setDescriptionAr(translations.description_ar);
+      
+      toast.success("Traductions générées avec succès !");
+    } catch (error) {
+      toast.error("Erreur lors de la traduction IA.");
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
   const handleEdit = (apt: Apartment) => {
     setEditingId(apt.id);
     setTitle(apt.title);
     setLocation(apt.location);
-    setPrice(apt.base_price_per_night.toString());
     setDescription(apt.description);
+    
+    // Charger les traductions existantes
+    setTitleEn(apt.title_en || '');
+    setTitleAr(apt.title_ar || '');
+    setLocationEn(apt.location_en || '');
+    setLocationAr(apt.location_ar || '');
+    setDescriptionEn(apt.description_en || '');
+    setDescriptionAr(apt.description_ar || '');
+
+    setPrice(apt.base_price_per_night.toString());
     setAmenitiesStr(apt.amenities.join(', '));
     setExistingImages(apt.images || []);
     setSelectedFiles([]);
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    window.scrollTo({ top: document.querySelector('form')?.offsetTop || 0, behavior: 'smooth' });
   };
 
   const handleResetForm = () => {
     setEditingId(null);
-    setTitle(''); setLocation(''); setPrice(''); setDescription(''); setAmenitiesStr('');
+    setTitle(''); setLocation(''); setDescription('');
+    setTitleEn(''); setTitleAr(''); setLocationEn(''); setLocationAr(''); setDescriptionEn(''); setDescriptionAr('');
+    setPrice(''); setAmenitiesStr('');
     setExistingImages([]); setSelectedFiles([]);
   };
 
@@ -65,13 +126,12 @@ export default function Properties() {
     setSelectedFiles(prev => prev.filter((_, index) => index !== indexToRemove));
   };
 
-  // NOUVEAU : Fonction pour définir l'image principale
   const handleSetMainImage = (indexToMain: number) => {
-    if (indexToMain === 0) return; // Déjà principale
+    if (indexToMain === 0) return;
     setExistingImages(prev => {
       const newArray = [...prev];
-      const [itemToMove] = newArray.splice(indexToMain, 1); // Retire l'image de sa position
-      newArray.unshift(itemToMove); // La place tout au début (index 0)
+      const [itemToMove] = newArray.splice(indexToMain, 1);
+      newArray.unshift(itemToMove);
       return newArray;
     });
   };
@@ -93,10 +153,18 @@ export default function Properties() {
     setUploadProgress("Sauvegarde du bien...");
 
     const amenitiesArray = amenitiesStr.split(',').map(item => item.trim()).filter(Boolean);
+    
+    // OBJET COMPLET AVEC LES 3 LANGUES
     const apartmentData = {
       title,
+      title_en: titleEn,
+      title_ar: titleAr,
       location,
+      location_en: locationEn,
+      location_ar: locationAr,
       description,
+      description_en: descriptionEn,
+      description_ar: descriptionAr,
       base_price_per_night: Number(price),
       amenities: amenitiesArray,
       images: imageUrls,
@@ -124,10 +192,10 @@ export default function Properties() {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 max-w-5xl mx-auto">
+    <div className="space-y-8 animate-in fade-in duration-500 max-w-5xl mx-auto pb-20">
       <div>
         <h1 className="text-3xl font-serif tracking-tight">Gestion des Biens</h1>
-        <p className="text-muted-foreground mt-1">Gérez votre catalogue d'appartements.</p>
+        <p className="text-muted-foreground mt-1">Gérez votre catalogue d'appartements multilingue.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -163,123 +231,145 @@ export default function Properties() {
           )}
         </div>
 
-        <Card className="bg-card border-border/50 shadow-sm">
-          <CardContent className="space-y-6 pt-6">
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="title">Titre de l'annonce</Label>
-                <Input id="title" required value={title} onChange={e => setTitle(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="location">Localisation</Label>
-                <Input id="location" required value={location} onChange={e => setLocation(e.target.value)} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="price">Prix par nuit (Dhs)</Label>
-                <Input id="price" type="number" min="0" required value={price} onChange={e => setPrice(e.target.value)} />
-              </div>
-              <div className="space-y-2 flex flex-col justify-center pt-6">
-                <div className="flex items-center space-x-2">
-                  <Switch id="active" checked={isActive} onCheckedChange={setIsActive} />
-                  <Label htmlFor="active">Annonce visible</Label>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea id="description" required rows={4} value={description} onChange={e => setDescription(e.target.value)} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="amenities">Équipements (séparés par des virgules)</Label>
-              <Input id="amenities" value={amenitiesStr} onChange={e => setAmenitiesStr(e.target.value)} />
-            </div>
-
-            <div className="pt-6 border-t border-border/50 space-y-4">
-              <Label>Galerie Photos</Label>
-              
-              {existingImages.length > 0 && (
-                <div className="flex flex-wrap gap-4 mb-4">
-                  {existingImages.map((img, i) => (
-                    <div key={i} className={`relative w-28 h-28 rounded-md overflow-hidden border-2 group ${i === 0 ? 'border-primary ring-2 ring-primary/20' : 'border-border'}`}>
-                      <img src={img} className="w-full h-full object-cover" alt="" />
-                      
-                      {/* Badge PRINCIPALE pour la 1ère image */}
-                      {i === 0 && (
-                        <div className="absolute bottom-0 left-0 right-0 bg-primary/90 text-[10px] text-center text-primary-foreground py-1 font-bold tracking-wider">
-                          PRINCIPALE
-                        </div>
-                      )}
-
-                      {/* Boutons d'action au survol */}
-                      <div className="absolute top-1 right-1 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          type="button" 
-                          onClick={() => handleRemoveExistingImage(i)}
-                          className="bg-background/90 text-foreground rounded-full p-1.5 hover:bg-destructive hover:text-destructive-foreground shadow-sm"
-                          title="Supprimer cette photo"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                        
-                        {i !== 0 && (
-                          <button 
-                            type="button" 
-                            onClick={() => handleSetMainImage(i)}
-                            className="bg-background/90 text-foreground rounded-full p-1.5 hover:bg-primary hover:text-primary-foreground shadow-sm"
-                            title="Mettre en photo principale"
-                          >
-                            <Star className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  <div className="w-full text-xs text-muted-foreground mt-1">({existingImages.length} images en ligne)</div>
-                </div>
-              )}
-
-              <div className="border-2 border-dashed border-border/50 rounded-xl p-8 text-center hover:bg-secondary/20 transition-colors">
-                <Input type="file" accept="image/*" multiple onChange={handleFileChange} className="hidden" id="file-upload" />
-                <Label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center gap-3">
-                  <UploadCloud className="w-10 h-10 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground font-medium">Ajouter de nouvelles photos (Optionnel)</span>
-                </Label>
+        <div className="space-y-8">
+          {/* SECTION FRANÇAIS (SOURCE) */}
+          <Card className="bg-secondary/10 border-primary/20 shadow-sm border-2">
+            <CardContent className="space-y-6 pt-6">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold flex items-center gap-2"><span className="text-xl">🇫🇷</span> Contenu Source (Français)</h3>
+                <Button 
+                  type="button" 
+                  onClick={handleAutoTranslate} 
+                  disabled={isTranslating || !title}
+                  className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-lg"
+                >
+                  {isTranslating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                  Traduire avec l'IA
+                </Button>
               </div>
               
-              {selectedFiles.length > 0 && (
-                <div className="mt-4 space-y-3">
-                  <div className="text-sm text-primary flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4" /> {selectedFiles.length} nouvelle(s) photo(s) prête(s)
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Titre de l'annonce</Label>
+                  <Input id="title" required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex: Superbe Appartement Marina..." />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="location">Localisation</Label>
+                  <Input id="location" required value={location} onChange={e => setLocation(e.target.value)} placeholder="Ex: Quartier Salam, Agadir" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Description complète</Label>
+                <Textarea id="description" required rows={4} value={description} onChange={e => setDescription(e.target.value)} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* SECTION TRADUCTIONS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* ANGLAIS */}
+            <Card className="border-border/50">
+              <CardContent className="space-y-4 pt-6">
+                <h3 className="font-bold flex items-center gap-2"><span className="text-xl">🇬🇧</span> English</h3>
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase text-muted-foreground">Title</Label>
+                  <Input value={titleEn} onChange={e => setTitleEn(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase text-muted-foreground">Location</Label>
+                  <Input value={locationEn} onChange={e => setLocationEn(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase text-muted-foreground">Description</Label>
+                  <Textarea rows={4} value={descriptionEn} onChange={e => setDescriptionEn(e.target.value)} />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ARABE */}
+            <Card className="border-border/50">
+              <CardContent className="space-y-4 pt-6" dir="rtl">
+                <h3 className="font-bold flex items-center gap-2 justify-end">العربية <span className="text-xl">🇲🇦</span></h3>
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase text-muted-foreground">العنوان</Label>
+                  <Input value={titleAr} onChange={e => setTitleAr(e.target.value)} className="text-right" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase text-muted-foreground">الموقع</Label>
+                  <Input value={locationAr} onChange={e => setLocationAr(e.target.value)} className="text-right" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase text-muted-foreground">الوصف</Label>
+                  <Textarea rows={4} value={descriptionAr} onChange={e => setDescriptionAr(e.target.value)} className="text-right" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* PARAMÈTRES TECHNIQUES (Prix, Switch, Équipements) */}
+          <Card className="bg-card border-border/50 shadow-sm">
+            <CardContent className="space-y-6 pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="price">Prix par nuit (Dhs)</Label>
+                  <Input id="price" type="number" min="0" required value={price} onChange={e => setPrice(e.target.value)} />
+                </div>
+                <div className="space-y-2 flex flex-col justify-center pt-6">
+                  <div className="flex items-center space-x-2">
+                    <Switch id="active" checked={isActive} onCheckedChange={setIsActive} />
+                    <Label htmlFor="active">Annonce visible</Label>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedFiles.map((file, i) => (
-                      <div key={i} className="flex items-center gap-2 bg-secondary px-3 py-1.5 rounded-md text-xs border border-border/50">
-                        <span className="truncate max-w-[120px]">{file.name}</span>
-                        <button type="button" onClick={() => handleRemoveSelectedFile(i)} className="text-muted-foreground hover:text-destructive">
-                          <X className="w-3 h-3" />
-                        </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="amenities">Équipements (séparés par des virgules)</Label>
+                <Input id="amenities" value={amenitiesStr} onChange={e => setAmenitiesStr(e.target.value)} placeholder="Wifi, Piscine, Parking..." />
+              </div>
+
+              {/* GALERIE PHOTO (Inchangée) */}
+              <div className="pt-6 border-t border-border/50 space-y-4">
+                <Label>Galerie Photos</Label>
+                {existingImages.length > 0 && (
+                  <div className="flex flex-wrap gap-4 mb-4">
+                    {existingImages.map((img, i) => (
+                      <div key={i} className={`relative w-28 h-28 rounded-md overflow-hidden border-2 group ${i === 0 ? 'border-primary ring-2 ring-primary/20' : 'border-border'}`}>
+                        <img src={img} className="w-full h-full object-cover" alt="" />
+                        {i === 0 && <div className="absolute bottom-0 left-0 right-0 bg-primary/90 text-[10px] text-center text-primary-foreground py-1 font-bold tracking-wider">PRINCIPALE</div>}
+                        <div className="absolute top-1 right-1 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button type="button" onClick={() => handleRemoveExistingImage(i)} className="bg-background/90 text-foreground rounded-full p-1.5 hover:bg-destructive hover:text-destructive-foreground shadow-sm"><X className="w-3.5 h-3.5" /></button>
+                          {i !== 0 && <button type="button" onClick={() => handleSetMainImage(i)} className="bg-background/90 text-foreground rounded-full p-1.5 hover:bg-primary hover:text-primary-foreground shadow-sm"><Star className="w-3.5 h-3.5" /></button>}
+                        </div>
                       </div>
                     ))}
                   </div>
+                )}
+                <div className="border-2 border-dashed border-border/50 rounded-xl p-8 text-center hover:bg-secondary/20 transition-colors">
+                  <Input type="file" accept="image/*" multiple onChange={handleFileChange} className="hidden" id="file-upload" />
+                  <Label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center gap-3">
+                    <UploadCloud className="w-10 h-10 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground font-medium">Ajouter de nouvelles photos</span>
+                  </Label>
                 </div>
-              )}
-            </div>
+                {selectedFiles.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {selectedFiles.map((file, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-secondary px-3 py-1.5 rounded-md text-xs border border-border/50">
+                        <span className="truncate max-w-[120px]">{file.name}</span>
+                        <button type="button" onClick={() => handleRemoveSelectedFile(i)} className="text-muted-foreground hover:text-destructive"><X className="w-3 h-3" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            <Button type="submit" className="w-full py-6 text-lg" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> {uploadProgress}</>
-              ) : (
-                editingId ? "Enregistrer les modifications" : "Publier l'appartement"
-              )}
-            </Button>
-          </CardContent>
-        </Card>
+              <Button type="submit" className="w-full py-6 text-lg" disabled={isSubmitting}>
+                {isSubmitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> {uploadProgress}</> : (editingId ? "Enregistrer les modifications" : "Publier l'appartement")}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </form>
     </div>
   );

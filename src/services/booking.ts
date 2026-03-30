@@ -37,11 +37,11 @@ export async function createBooking(bookingData: CreateBookingDTO) {
     return { success: false, error: error.message };
   }
 
-  // 2. Envoi via EmailJS (Ceci remplace complètement Resend !)
+  // 2. Envoi via EmailJS
   try {
     await emailjs.send(
-      'service_cuj6zbh',   // ⚠️ Ton Service ID EmailJS
-      'template_1cgujxw',  // ⚠️ Ton Template ID EmailJS
+      'service_cuj6zbh',   
+      'template_1cgujxw',  
       {
         guest_name: bookingData.guest_name,
         guest_phone: bookingData.guest_phone,
@@ -51,9 +51,9 @@ export async function createBooking(bookingData: CreateBookingDTO) {
         total_price: bookingData.total_price,
         to_email: 'mazouzwebsolutions@gmail.com'
       },
-      'Dp2zlzSfKtePsmhGG'     // ⚠️ Ta Public Key EmailJS
+      'Dp2zlzSfKtePsmhGG'     
     );
-    console.log("EmailJS : Alerte envoyée avec succès !");
+    console.log("Krilia System : Email envoyé au propriétaire avec succès !");
   } catch (emailError) {
     console.error("Erreur EmailJS :", emailError);
   }
@@ -62,7 +62,16 @@ export async function createBooking(bookingData: CreateBookingDTO) {
 }
 
 export async function getAdminBookings(): Promise<Booking[]> {
-  const { data, error } = await supabase.from('bookings').select('*').order('created_at', { ascending: false });
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  // On utilise la variable "error" pour satisfaire le linter et faciliter le débogage
+  if (error) {
+    console.error("Erreur lors du chargement des réservations :", error.message);
+  }
+
   return data || [];
 }
 

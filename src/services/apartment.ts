@@ -1,16 +1,42 @@
 import { supabase } from '@/lib/supabase';
 
-// Typage strict de ce qui sort de ta base de données
+// 1. Typage strict de l'appartement (Modèle de données)
 export type Apartment = {
   id: string;
   title: string;
-  description: string;
+  title_en?: string;   
+  title_ar?: string;
   location: string;
+  location_en?: string;
+  location_ar?: string;
+  description: string;
+  description_en?: string;
+  description_ar?: string;
   base_price_per_night: number;
   amenities: string[];
   images: string[];
+  is_active: boolean;
+  created_at?: string;
 };
 
+// 2. DTO pour la Création / Mise à jour (On ajoute les champs de traduction ici)
+export type CreateApartmentDTO = {
+  title: string;
+  title_en?: string;    // 👈 Ajouté
+  title_ar?: string;    // 👈 Ajouté
+  description: string;
+  description_en?: string; // 👈 Ajouté
+  description_ar?: string; // 👈 Ajouté
+  location: string;
+  location_en?: string;    // 👈 Ajouté
+  location_ar?: string;    // 👈 Ajouté
+  base_price_per_night: number;
+  amenities: string[];
+  images: string[];
+  is_active: boolean;
+};
+
+// Lecture de tous les biens actifs
 export async function getActiveApartments(): Promise<Apartment[]> {
   const { data, error } = await supabase
     .from('apartments')
@@ -25,6 +51,8 @@ export async function getActiveApartments(): Promise<Apartment[]> {
   
   return data || [];
 }
+
+// Lecture d'un bien spécifique
 export async function getApartmentById(id: string): Promise<Apartment | null> {
   const { data, error } = await supabase
     .from('apartments')
@@ -39,16 +67,8 @@ export async function getApartmentById(id: string): Promise<Apartment | null> {
   
   return data;
 }
-export type CreateApartmentDTO = {
-  title: string;
-  description: string;
-  location: string;
-  base_price_per_night: number;
-  amenities: string[];
-  images: string[];
-  is_active: boolean;
-};
 
+// Création d'un bien (Inclut désormais les traductions si présentes)
 export async function createApartment(apartmentData: CreateApartmentDTO) {
   const { data, error } = await supabase
     .from('apartments')
@@ -63,6 +83,8 @@ export async function createApartment(apartmentData: CreateApartmentDTO) {
   
   return { success: true, data };
 }
+
+// Mise à jour d'un bien
 export async function updateApartment(id: string, apartmentData: Partial<CreateApartmentDTO>) {
   const { data, error } = await supabase
     .from('apartments')
