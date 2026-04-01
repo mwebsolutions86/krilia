@@ -14,24 +14,28 @@ export type Apartment = {
   description_ar?: string;
   base_price_per_night: number;
   amenities: string[];
+  amenities_en?: string[]; // 👈 Ajouté
+  amenities_ar?: string[]; // 👈 Ajouté
   images: string[];
   is_active: boolean;
   created_at?: string;
 };
 
-// 2. DTO pour la Création / Mise à jour (On ajoute les champs de traduction ici)
+// 2. DTO pour la Création / Mise à jour (On ajoute les champs de traduction ici aussi !)
 export type CreateApartmentDTO = {
   title: string;
-  title_en?: string;    // 👈 Ajouté
-  title_ar?: string;    // 👈 Ajouté
+  title_en?: string;    
+  title_ar?: string;    
   description: string;
-  description_en?: string; // 👈 Ajouté
-  description_ar?: string; // 👈 Ajouté
+  description_en?: string; 
+  description_ar?: string; 
   location: string;
-  location_en?: string;    // 👈 Ajouté
-  location_ar?: string;    // 👈 Ajouté
+  location_en?: string;    
+  location_ar?: string;    
   base_price_per_night: number;
   amenities: string[];
+  amenities_en?: string[]; // 👈 Ajouté
+  amenities_ar?: string[]; // 👈 Ajouté
   images: string[];
   is_active: boolean;
 };

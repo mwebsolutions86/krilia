@@ -31,12 +31,12 @@ export default function PublicLayout() {
             </Link>
 
             <nav className="hidden md:flex items-center gap-8">
-              <Link to="/" className="text-sm font-medium hover:text-primary transition-colors">
+              <Link to="/apartments" className="text-sm font-medium hover:text-primary transition-colors">
                 {t('nav.properties')}
               </Link>
-              <a href="#about" className="text-sm font-medium hover:text-primary transition-colors">
-                {t('nav.agency')}
-              </a>
+              <Link to="/agency" className="text-sm font-medium hover:text-primary transition-colors">
+    {t('nav.agency')}
+  </Link>
               <a href="#contact" className="text-sm font-medium hover:text-primary transition-colors">
                 {t('nav.contact')}
               </a>
@@ -84,12 +84,12 @@ export default function PublicLayout() {
                 <button onClick={() => changeLanguage('ar')} className={`text-sm font-bold ${isLangActive('ar') ? 'text-primary' : 'text-muted-foreground'}`}>AR</button>
               </div>
 
-              <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-4 text-base font-medium border-b border-border/50">
+              <Link to="/apartments" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-4 text-base font-medium border-b border-border/50">
                 {t('nav.properties')}
               </Link>
-              <a href="#about" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-4 text-base font-medium border-b border-border/50">
-                {t('nav.agency')}
-              </a>
+              <Link to="/agency" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-4 text-base font-medium border-b border-border/50">
+    {t('nav.agency')}
+  </Link>
               <a href="#contact" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-4 text-base font-medium border-b border-border/50">
                 {t('nav.contact')}
               </a>

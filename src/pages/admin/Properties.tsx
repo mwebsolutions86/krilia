@@ -7,25 +7,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { uploadAndCompressImage } from '@/services/storage';
 import { createApartment, updateApartment, getActiveApartments, type Apartment } from '@/services/apartment';
-import { translatePropertySecurely } from '@/services/ai'; // 🪄 IMPORT DU SERVICE IA
+import { translatePropertySecurely } from '@/services/ai';
 import { 
-  Loader2, 
-  UploadCloud, 
-  Image as ImageIcon, 
-  Edit, 
-  Plus, 
-  X, 
-  Star, 
-  Sparkles 
+  Loader2, UploadCloud, Edit, Plus, X, Star, Sparkles 
 } from 'lucide-react';
 import { toast } from 'sonner';
-
-
 
 export default function Properties() {
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isTranslating, setIsTranslating] = useState(false); // État pour l'IA
+  const [isTranslating, setIsTranslating] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -34,6 +25,7 @@ export default function Properties() {
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
+  const [amenitiesStr, setAmenitiesStr] = useState('');
   
   // ÉTATS DES TRADUCTIONS (EN / AR)
   const [titleEn, setTitleEn] = useState('');
@@ -42,14 +34,13 @@ export default function Properties() {
   const [locationAr, setLocationAr] = useState('');
   const [descriptionEn, setDescriptionEn] = useState('');
   const [descriptionAr, setDescriptionAr] = useState('');
+  const [amenitiesEnStr, setAmenitiesEnStr] = useState('');
+  const [amenitiesArStr, setAmenitiesArStr] = useState('');
 
   const [price, setPrice] = useState('');
-  const [amenitiesStr, setAmenitiesStr] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-
-  
 
   useEffect(() => {
     async function loadInitialData() {
@@ -59,16 +50,16 @@ export default function Properties() {
     loadInitialData();
   }, []);
 
-  // 🪄 FONCTION DE TRADUCTION AUTOMATIQUE
+  // 🪄 FONCTION DE TRADUCTION AUTOMATIQUE MIS À JOUR
   const handleAutoTranslate = async () => {
-    if (!title || !description || !location) {
-      toast.error("Remplissez d'abord les champs en français.");
+    if (!title || !description || !location || !amenitiesStr) {
+      toast.error("Remplissez le titre, la description, la localisation ET les équipements (Fr) d'abord.");
       return;
     }
 
     setIsTranslating(true);
     try {
-      const translations = await translatePropertySecurely({ title, description, location });
+      const translations = await translatePropertySecurely({ title, description, location, amenities: amenitiesStr });
       
       setTitleEn(translations.title_en);
       setTitleAr(translations.title_ar);
@@ -76,9 +67,11 @@ export default function Properties() {
       setLocationAr(translations.location_ar);
       setDescriptionEn(translations.description_en);
       setDescriptionAr(translations.description_ar);
+      setAmenitiesEnStr(translations.amenities_en);
+      setAmenitiesArStr(translations.amenities_ar);
       
       toast.success("Traductions générées avec succès !");
-    } catch (error) {
+    } catch {
       toast.error("Erreur lors de la traduction IA.");
     } finally {
       setIsTranslating(false);
@@ -90,6 +83,7 @@ export default function Properties() {
     setTitle(apt.title);
     setLocation(apt.location);
     setDescription(apt.description);
+    setAmenitiesStr(apt.amenities && apt.amenities.length > 0 ? apt.amenities.join(', ') : '');
     
     // Charger les traductions existantes
     setTitleEn(apt.title_en || '');
@@ -98,9 +92,12 @@ export default function Properties() {
     setLocationAr(apt.location_ar || '');
     setDescriptionEn(apt.description_en || '');
     setDescriptionAr(apt.description_ar || '');
+    
+    // Charger les équipements traduits s'ils existent
+    setAmenitiesEnStr(apt.amenities_en && apt.amenities_en.length > 0 ? apt.amenities_en.join(', ') : '');
+    setAmenitiesArStr(apt.amenities_ar && apt.amenities_ar.length > 0 ? apt.amenities_ar.join(', ') : '');
 
     setPrice(apt.base_price_per_night.toString());
-    setAmenitiesStr(apt.amenities.join(', '));
     setExistingImages(apt.images || []);
     setSelectedFiles([]);
     window.scrollTo({ top: document.querySelector('form')?.offsetTop || 0, behavior: 'smooth' });
@@ -108,9 +105,10 @@ export default function Properties() {
 
   const handleResetForm = () => {
     setEditingId(null);
-    setTitle(''); setLocation(''); setDescription('');
+    setTitle(''); setLocation(''); setDescription(''); setAmenitiesStr('');
     setTitleEn(''); setTitleAr(''); setLocationEn(''); setLocationAr(''); setDescriptionEn(''); setDescriptionAr('');
-    setPrice(''); setAmenitiesStr('');
+    setAmenitiesEnStr(''); setAmenitiesArStr('');
+    setPrice(''); 
     setExistingImages([]); setSelectedFiles([]);
   };
 
@@ -153,9 +151,11 @@ export default function Properties() {
     setUploadProgress("Sauvegarde du bien...");
 
     const amenitiesArray = amenitiesStr.split(',').map(item => item.trim()).filter(Boolean);
+    const amenitiesEnArray = amenitiesEnStr.split(',').map(item => item.trim()).filter(Boolean);
+    const amenitiesArArray = amenitiesArStr.split(',').map(item => item.trim()).filter(Boolean);
     
-    // OBJET COMPLET AVEC LES 3 LANGUES
-    const apartmentData = {
+    // On type explicitement en Omit<Apartment, 'id' | 'created_at'> pour satisfaire TypeScript
+    const apartmentData: Omit<Apartment, 'id' | 'created_at'> = {
       title,
       title_en: titleEn,
       title_ar: titleAr,
@@ -167,6 +167,8 @@ export default function Properties() {
       description_ar: descriptionAr,
       base_price_per_night: Number(price),
       amenities: amenitiesArray,
+      amenities_en: amenitiesEnArray,
+      amenities_ar: amenitiesArArray,
       images: imageUrls,
       is_active: isActive
     };
@@ -202,7 +204,7 @@ export default function Properties() {
         {apartments.map((apt) => (
           <Card key={apt.id} className="bg-card border-border/50 overflow-hidden">
             <div className="h-32 bg-secondary/30 relative">
-              {apt.images.length > 0 ? (
+              {apt.images && apt.images.length > 0 ? (
                 <img src={apt.images[0]} alt={apt.title} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">Sans photo</div>
@@ -240,7 +242,7 @@ export default function Properties() {
                 <Button 
                   type="button" 
                   onClick={handleAutoTranslate} 
-                  disabled={isTranslating || !title}
+                  disabled={isTranslating || !title || !description || !amenitiesStr}
                   className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-lg"
                 >
                   {isTranslating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
@@ -263,6 +265,11 @@ export default function Properties() {
                 <Label htmlFor="description">Description complète</Label>
                 <Textarea id="description" required rows={4} value={description} onChange={e => setDescription(e.target.value)} />
               </div>
+
+              <div className="space-y-2 pt-4 border-t border-primary/10">
+                <Label htmlFor="amenities">Équipements en Français (séparés par des virgules)</Label>
+                <Input id="amenities" required value={amenitiesStr} onChange={e => setAmenitiesStr(e.target.value)} placeholder="Wifi, Piscine, Parking..." />
+              </div>
             </CardContent>
           </Card>
 
@@ -284,6 +291,10 @@ export default function Properties() {
                   <Label className="text-xs uppercase text-muted-foreground">Description</Label>
                   <Textarea rows={4} value={descriptionEn} onChange={e => setDescriptionEn(e.target.value)} />
                 </div>
+                <div className="space-y-2 pt-2">
+                  <Label className="text-xs uppercase text-muted-foreground">Amenities (comma separated)</Label>
+                  <Input value={amenitiesEnStr} onChange={e => setAmenitiesEnStr(e.target.value)} placeholder="Wifi, Pool, Parking..." />
+                </div>
               </CardContent>
             </Card>
 
@@ -303,11 +314,15 @@ export default function Properties() {
                   <Label className="text-xs uppercase text-muted-foreground">الوصف</Label>
                   <Textarea rows={4} value={descriptionAr} onChange={e => setDescriptionAr(e.target.value)} className="text-right" />
                 </div>
+                <div className="space-y-2 pt-2">
+                  <Label className="text-xs uppercase text-muted-foreground">المرافق (مفصولة بفواصل)</Label>
+                  <Input value={amenitiesArStr} onChange={e => setAmenitiesArStr(e.target.value)} className="text-right" placeholder="واي فاي، مسبح، موقف سيارات..." />
+                </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* PARAMÈTRES TECHNIQUES (Prix, Switch, Équipements) */}
+          {/* PARAMÈTRES TECHNIQUES */}
           <Card className="bg-card border-border/50 shadow-sm">
             <CardContent className="space-y-6 pt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -323,12 +338,6 @@ export default function Properties() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="amenities">Équipements (séparés par des virgules)</Label>
-                <Input id="amenities" value={amenitiesStr} onChange={e => setAmenitiesStr(e.target.value)} placeholder="Wifi, Piscine, Parking..." />
-              </div>
-
-              {/* GALERIE PHOTO (Inchangée) */}
               <div className="pt-6 border-t border-border/50 space-y-4">
                 <Label>Galerie Photos</Label>
                 {existingImages.length > 0 && (

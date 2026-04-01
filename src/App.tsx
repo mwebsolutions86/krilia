@@ -12,6 +12,8 @@ import ApartmentPage from '@/pages/public/Apartment';
 import Login from '@/pages/auth/Login'; // <-- NOUVEAU
 import Dashboard from '@/pages/admin/Dashboard';
 import Properties from '@/pages/admin/Properties';
+import PropertiesList from '@/pages/public/PropertiesList';
+import Agency from '@/pages/public/Agency';
 
 export default function App() {
   return (
@@ -22,6 +24,12 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/apartment/:id" element={<ApartmentPage />} />
         </Route>
+        <Route element={<PublicLayout />}>
+  <Route path="/" element={<Home />} />
+  <Route path="/apartments" element={<PropertiesList />} /> 
+  <Route path="/agency" element={<Agency />} />
+  <Route path="/apartment/:id" element={<ApartmentPage />} />
+</Route>
 
         {/* PAGE DE CONNEXION (Indépendante des layouts) */}
         <Route path="/login" element={<Login />} />

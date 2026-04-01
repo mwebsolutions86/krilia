@@ -9,7 +9,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { title, description, location } = await req.json()
+    const { title, description, location, amenities } = await req.json()
     const apiKey = Deno.env.get('GROQ_API_KEY')
 
     if (!apiKey) throw new Error("Clé API manquante dans les secrets")
@@ -25,14 +25,40 @@ serve(async (req) => {
         messages: [
           { 
             role: "system", 
-            content: "Tu es un traducteur expert en immobilier. Tu dois répondre UNIQUEMENT par un objet JSON pur, sans aucun texte, sans balises Markdown, sans '```json'. Juste les accolades." 
+            content: `Tu es un traducteur expert. Je vais te fournir 4 éléments en FRANÇAIS (Titre, Localisation, Description, Équipements).
+            Tu DOIS traduire CHACUN de ces 4 éléments en ANGLAIS et en ARABE.
+            
+            Règles strictes :
+            - Anglais : Fluide, naturel, vocabulaire immobilier.
+            - Arabe : Arabe standard moderne, vendeur, adapté au marché marocain.
+            - Les équipements doivent être traduits un par un et séparés par des virgules (ex: "Wifi, Pool" et "واي فاي، مسبح").
+            
+            Tu dois répondre UNIQUEMENT par un objet JSON pur. Ne dis rien d'autre.`
           },
           { 
             role: "user", 
-            content: `Traduis ce contenu en anglais et arabe (JSON keys: title_en, description_en, location_en, title_ar, description_ar, location_ar) : Titre: ${title}, Description: ${description}, Location: ${location}` 
+            content: `Voici les données en français à traduire impérativement dans les deux langues :
+            
+Titre: ${title}
+Localisation: ${location}
+Description: ${description}
+Équipements: ${amenities}
+
+Génère EXACTEMENT ce JSON avec les traductions : 
+{
+  "title_en": "...", 
+  "description_en": "...", 
+  "location_en": "...", 
+  "amenities_en": "...", 
+  "title_ar": "...", 
+  "description_ar": "...", 
+  "location_ar": "...", 
+  "amenities_ar": "..."
+}` 
           }
         ],
-        temperature: 0.1,
+        temperature: 0.2,
+        max_tokens: 4000,
         response_format: { type: "json_object" } 
       })
     })
@@ -40,9 +66,8 @@ serve(async (req) => {
     const data = await response.json()
     const rawContent = data.choices[0].message.content
 
-    // 🪄 LE NETTOYEUR MAGIQUE : Supprime les balises Markdown si l'IA en a mis
+    // Nettoyeur magique
     const cleanJson = rawContent.replace(/```json/g, "").replace(/```/g, "").trim()
-
     const content = JSON.parse(cleanJson)
 
     return new Response(JSON.stringify(content), {

@@ -12,16 +12,18 @@ import { MapPin, ChevronLeft, Check, Loader2, Image as ImageIcon } from 'lucide-
 import { addDays, differenceInDays, format } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 export default function ApartmentPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
+  const isRtl = i18n.language === 'ar';
+
   const [apartment, setApartment] = useState<Apartment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
-  // ÉTAT DE LA GALERIE PHOTO (Pour le SaaS de Visionnage) 👇
   const [mainImageUrl, setMainImageUrl] = useState<string | null>(null);
   
   const [date, setDate] = useState<DateRange | undefined>({
@@ -33,12 +35,27 @@ export default function ApartmentPage() {
   const [guestEmail, setGuestEmail] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
 
+  // 🪄 TRADUCTION TEXTES
+  const getLocalizedText = (apt: Apartment, field: 'title' | 'description' | 'location'): string => {
+    const lang = i18n.language || 'fr';
+    if (lang.startsWith('ar')) return (apt[`${field}_ar` as keyof Apartment] as string) || apt[field];
+    if (lang.startsWith('en')) return (apt[`${field}_en` as keyof Apartment] as string) || apt[field];
+    return apt[field];
+  };
+
+  // 🪄 TRADUCTION ÉQUIPEMENTS (TABLEAUX)
+  const getLocalizedAmenities = (apt: Apartment): string[] => {
+    const lang = i18n.language || 'fr';
+    if (lang.startsWith('ar') && apt.amenities_ar && apt.amenities_ar.length > 0) return apt.amenities_ar;
+    if (lang.startsWith('en') && apt.amenities_en && apt.amenities_en.length > 0) return apt.amenities_en;
+    return apt.amenities || [];
+  };
+
   useEffect(() => {
     async function fetchAppartement() {
       if (!id) return;
       const data = await getApartmentById(id);
       setApartment(data);
-      // Au chargement, on définit la première image comme image principale
       if (data && data.images.length > 0) {
         setMainImageUrl(data.images[0]);
       }
@@ -47,8 +64,8 @@ export default function ApartmentPage() {
     fetchAppartement();
   }, [id]);
 
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center">Chargement...</div>;
-  if (!apartment) return <div className="min-h-screen flex items-center justify-center">Bien introuvable.</div>;
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center">{t('apartment.loading', 'Chargement...')}</div>;
+  if (!apartment) return <div className="min-h-screen flex items-center justify-center">{t('apartment.not_found', 'Bien introuvable.')}</div>;
 
   const days = date?.from && date?.to ? differenceInDays(date.to, date.from) : 0;
   const totalPrice = days > 0 ? days * apartment.base_price_per_night : 0;
@@ -72,60 +89,44 @@ export default function ApartmentPage() {
     setIsSubmitting(false);
 
     if (result.success) {
-      toast.success("Demande envoyée avec succès !", {
-        description: "Nous vous contacterons très vite pour confirmer.",
+      toast.success(t('apartment.toast.success_title', 'Demande envoyée avec succès !'), {
+        description: t('apartment.toast.success_desc', 'Nous vous contacterons très vite pour confirmer.'),
       });
       setIsDialogOpen(false);
       setTimeout(() => navigate('/'), 2000);
     } else {
-      toast.error("Erreur lors de la réservation", {
-        description: "Veuillez réessayer ou nous contacter directement.",
+      toast.error(t('apartment.toast.error_title', 'Erreur lors de la réservation'), {
+        description: t('apartment.toast.error_desc', 'Veuillez réessayer ou nous contacter directement.'),
       });
     }
   };
 
   return (
     <div className="flex-1 animate-in fade-in duration-500 max-w-7xl mx-auto px-6 py-8 w-full">
-      <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-8 transition-colors">
-        <ChevronLeft className="w-4 h-4" /> Retour à la collection
+      <Link to="/apartments" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-8 transition-colors">
+        <ChevronLeft className={`w-4 h-4 ${isRtl ? 'rotate-180' : ''}`} /> {t('apartment.back_button', 'Retour à la collection')}
       </Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-        
-        {/* COLONNE GAUCHE : Galerie et Détails */}
         <div className="lg:col-span-2 space-y-8">
           
-          {/* GALERIE PHOTO INTERACTIVE (SaaS PropTech) 👇 */}
           {apartment.images.length > 0 ? (
             <div className="space-y-4">
-              {/* IMAGE PRINCIPALE GRANDE RESOLUTION */}
               <div className="aspect-video w-full overflow-hidden rounded-xl border border-border/50 bg-black/5 flex items-center justify-center">
                 {mainImageUrl ? (
-                    <img 
-                      src={mainImageUrl} 
-                      alt={`${apartment.title} - Image principale`} 
-                      className="w-full h-full object-contain animate-in fade-in duration-300" 
-                    />
+                    <img src={mainImageUrl} alt={`${getLocalizedText(apartment, 'title')}`} className="w-full h-full object-contain animate-in fade-in duration-300" />
                 ) : (
                     <ImageIcon className="w-12 h-12 text-muted-foreground" />
                 )}
               </div>
-
-              {/* LISTE DES MINIATURES CLIQUABLES (Thumbnails) */}
               <div className="flex flex-wrap gap-3 pt-2">
                 {apartment.images.map((image, index) => (
                   <button 
                     key={index} 
-                    onClick={() => setMainImageUrl(image)} // <--- CLIC QUI CHANGE L'IMAGE PRINCIPALE
-                    className={`relative w-24 h-24 rounded-lg overflow-hidden border-2 transition-all duration-200 
-                      ${mainImageUrl === image ? 'border-primary shadow-lg ring-2 ring-primary/20 scale-105' : 'border-border/50 hover:border-border hover:scale-105'}
-                    `}
+                    onClick={() => setMainImageUrl(image)} 
+                    className={`relative w-24 h-24 rounded-lg overflow-hidden border-2 transition-all duration-200 ${mainImageUrl === image ? 'border-primary shadow-lg ring-2 ring-primary/20 scale-105' : 'border-border/50 hover:border-border hover:scale-105'}`}
                   >
-                    <img 
-                      src={image} 
-                      alt={`${apartment.title} - Miniature ${index + 1}`} 
-                      className="w-full h-full object-cover" 
-                    />
+                    <img src={image} alt="Miniature" className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-black/5 rounded-lg"></div>
                   </button>
                 ))}
@@ -133,22 +134,23 @@ export default function ApartmentPage() {
             </div>
           ) : (
             <div className="aspect-video w-full overflow-hidden rounded-xl border border-border/50 bg-secondary/20 flex items-center justify-center text-muted-foreground">
-              <ImageIcon className="w-12 h-12" /> Aucun bien disponible pour le moment.
+              <ImageIcon className="w-12 h-12" /> {t('apartment.no_property_available', 'Aucun bien disponible pour le moment.')}
             </div>
           )}
 
           <div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground uppercase tracking-wider mb-2">
-              <MapPin className="w-4 h-4" /> {apartment.location}
+              <MapPin className="w-4 h-4" /> {getLocalizedText(apartment, 'location')}
             </div>
-            <h1 className="text-4xl font-serif mb-6">{apartment.title}</h1>
-            <p className="text-muted-foreground leading-relaxed text-lg">{apartment.description}</p>
+            <h1 className="text-4xl font-serif mb-6">{getLocalizedText(apartment, 'title')}</h1>
+            <p className="text-muted-foreground leading-relaxed text-lg whitespace-pre-wrap">{getLocalizedText(apartment, 'description')}</p>
           </div>
 
           <div className="pt-6 border-t border-border/50">
-            <h3 className="text-xl font-serif mb-4">Équipements inclus</h3>
+            <h3 className="text-xl font-serif mb-4">{t('apartment.included_amenities', 'Équipements inclus')}</h3>
             <ul className="grid grid-cols-2 gap-4">
-              {apartment.amenities.map((amenity, index) => (
+              {/* 👈 C'EST ICI LA MAGIE : On utilise getLocalizedAmenities */}
+              {getLocalizedAmenities(apartment).map((amenity, index) => (
                 <li key={index} className="flex items-center gap-2 text-muted-foreground">
                   <Check className="w-4 h-4 text-primary" /> {amenity}
                 </li>
@@ -157,86 +159,69 @@ export default function ApartmentPage() {
           </div>
         </div>
 
-        {/* COLONNE DROITE : Moteur de Réservation */}
+        {/* Moteur de réservation (inchangé) */}
         <div className="relative">
           <div className="sticky top-28">
             <Card className="bg-card border-border/50 shadow-2xl">
               <CardHeader className="border-b border-border/50 pb-6">
                 <CardTitle className="text-3xl font-light">
-                  {apartment.base_price_per_night} Dhs <span className="text-base text-muted-foreground font-normal">/ nuit</span>
+                  {apartment.base_price_per_night} {t('home.search.price_unit', 'Dhs')} <span className="text-base text-muted-foreground font-normal">/ {t('apartment.per_night', 'nuit')}</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-6 space-y-6">
-                
                 <div className="flex justify-center border border-border/50 rounded-lg p-2 bg-background">
-                  <Calendar
-                    mode="range"
-                    selected={date}
-                    onSelect={setDate}
-                    numberOfMonths={1}
-                    disabled={(d: Date) => d < new Date(new Date().setHours(0, 0, 0, 0))}
-                  />
+                  <Calendar mode="range" selected={date} onSelect={setDate} numberOfMonths={1} disabled={(d: Date) => d < new Date(new Date().setHours(0, 0, 0, 0))} />
                 </div>
-
                 {days > 0 ? (
                   <div className="bg-secondary/50 rounded-lg p-4 space-y-3">
                     <div className="flex justify-between text-sm text-muted-foreground">
-                      <span>{apartment.base_price_per_night} Dhs x {days} nuits</span>
-                      <span>{totalPrice} Dhs</span>
+                      <span>{apartment.base_price_per_night} {t('home.search.price_unit', 'Dhs')} x {days} {t('apartment.nights', 'nuits')}</span>
+                      <span>{totalPrice} {t('home.search.price_unit', 'Dhs')}</span>
                     </div>
                     <div className="border-t border-border/50 pt-3 flex justify-between font-serif text-xl">
-                      <span>Total</span>
-                      <span>{totalPrice} Dhs</span>
+                      <span>{t('apartment.total', 'Total')}</span>
+                      <span>{totalPrice} {t('home.search.price_unit', 'Dhs')}</span>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center text-sm text-muted-foreground py-4">
-                    Veuillez sélectionner vos dates
-                  </div>
+                  <div className="text-center text-sm text-muted-foreground py-4">{t('apartment.select_dates', 'Veuillez sélectionner vos dates')}</div>
                 )}
-
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button 
-                      className="w-full py-6 text-lg bg-primary text-primary-foreground hover:opacity-90 transition-all"
-                      disabled={days === 0}
-                    >
-                      Demander une réservation
+                    <Button className="w-full py-6 text-lg bg-primary text-primary-foreground hover:opacity-90 transition-all" disabled={days === 0}>
+                      {t('apartment.request_booking', 'Demander une réservation')}
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
                     <DialogHeader>
-                      <DialogTitle className="font-serif text-2xl">Finaliser la demande</DialogTitle>
+                      <DialogTitle className="font-serif text-2xl">{t('apartment.dialog.title', 'Finaliser la demande')}</DialogTitle>
                       <DialogDescription>
-                        Pour un séjour de {days} nuits ({totalPrice} Dhs). Nous vous recontacterons pour confirmer.
+                        {t('apartment.dialog.desc_part1', 'Pour un séjour de')} {days} {t('apartment.dialog.desc_part2', 'nuits')} ({totalPrice} {t('home.search.price_unit', 'Dhs')}). {t('apartment.dialog.desc_part3', 'Nous vous recontacterons pour confirmer.')}
                       </DialogDescription>
                     </DialogHeader>
-                    
                     <form onSubmit={handleBookingSubmit} className="space-y-4 mt-4">
                       <div className="space-y-2">
-                        <Label htmlFor="name">Nom complet</Label>
+                        <Label htmlFor="name">{t('apartment.form.name_label', 'Nom complet')}</Label>
                         <Input id="name" required value={guestName} onChange={(e) => setGuestName(e.target.value)} className="bg-background" />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
+                        <Label htmlFor="email">{t('apartment.form.email_label', 'Email')}</Label>
                         <Input id="email" type="email" required value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} className="bg-background" />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="phone">Téléphone (WhatsApp)</Label>
+                        <Label htmlFor="phone">{t('apartment.form.phone_label', 'Téléphone (WhatsApp)')}</Label>
                         <Input id="phone" type="tel" required value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} className="bg-background" />
                       </div>
                       <Button type="submit" className="w-full mt-4 bg-primary text-primary-foreground" disabled={isSubmitting}>
-                        {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Envoi en cours...</> : "Confirmer la demande"}
+                        {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t('apartment.form.sending', 'Envoi en cours...')}</> : t('apartment.form.submit_btn', 'Confirmer la demande')}
                       </Button>
                     </form>
                   </DialogContent>
                 </Dialog>
-
               </CardContent>
             </Card>
           </div>
         </div>
-        
       </div>
     </div>
   );
