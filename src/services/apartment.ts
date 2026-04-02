@@ -1,6 +1,5 @@
 import { supabase } from '@/lib/supabase';
 
-// 1. Typage strict de l'appartement (Modèle de données)
 export type Apartment = {
   id: string;
   title: string;
@@ -14,33 +13,19 @@ export type Apartment = {
   description_ar?: string;
   base_price_per_night: number;
   amenities: string[];
-  amenities_en?: string[]; // 👈 Ajouté
-  amenities_ar?: string[]; // 👈 Ajouté
+  amenities_en?: string[];
+  amenities_ar?: string[];
   images: string[];
   is_active: boolean;
+  owner_id?: string; // 👈 Ajouté pour le nouveau système
   created_at?: string;
 };
 
-// 2. DTO pour la Création / Mise à jour (On ajoute les champs de traduction ici aussi !)
-export type CreateApartmentDTO = {
-  title: string;
-  title_en?: string;    
-  title_ar?: string;    
-  description: string;
-  description_en?: string; 
-  description_ar?: string; 
-  location: string;
-  location_en?: string;    
-  location_ar?: string;    
-  base_price_per_night: number;
-  amenities: string[];
-  amenities_en?: string[]; // 👈 Ajouté
-  amenities_ar?: string[]; // 👈 Ajouté
-  images: string[];
-  is_active: boolean;
-};
+export type CreateApartmentDTO = Omit<Apartment, 'id' | 'created_at'>;
 
-// Lecture de tous les biens actifs
+// ==========================================
+// 1. POUR LE SITE PUBLIC (Tous les biens actifs)
+// ==========================================
 export async function getActiveApartments(): Promise<Apartment[]> {
   const { data, error } = await supabase
     .from('apartments')
@@ -52,11 +37,12 @@ export async function getActiveApartments(): Promise<Apartment[]> {
     console.error('Erreur Supabase :', error.message);
     return [];
   }
-  
   return data || [];
 }
 
-// Lecture d'un bien spécifique
+// ==========================================
+// 2. POUR LA PAGE D'UN APPARTEMENT
+// ==========================================
 export async function getApartmentById(id: string): Promise<Apartment | null> {
   const { data, error } = await supabase
     .from('apartments')
@@ -64,43 +50,69 @@ export async function getApartmentById(id: string): Promise<Apartment | null> {
     .eq('id', id)
     .single();
 
-  if (error) {
-    console.error('Erreur Supabase (getApartmentById) :', error.message);
-    return null;
-  }
-  
+  if (error) return null;
   return data;
 }
 
-// Création d'un bien (Inclut désormais les traductions si présentes)
-export async function createApartment(apartmentData: CreateApartmentDTO) {
+// ==========================================
+// 3. POUR LE CALENDRIER (Dates bloquées)
+// ==========================================
+export async function getBlockedDates(apartmentId: string) {
   const { data, error } = await supabase
-    .from('apartments')
-    .insert([apartmentData])
-    .select()
-    .single();
+    .from('blocked_dates')
+    .select('start_date, end_date')
+    .eq('apartment_id', apartmentId);
 
   if (error) {
-    console.error('Erreur lors de la création du bien :', error.message);
-    return { success: false, error: error.message };
+    console.error("Erreur dates bloquées:", error);
+    return [];
   }
-  
-  return { success: true, data };
+  return data;
 }
 
-// Mise à jour d'un bien
+// ==========================================
+// 4. CRÉATION & MODIFICATION (Super Admin)
+// ==========================================
+export async function createApartment(apartmentData: CreateApartmentDTO) {
+  const { data, error } = await supabase.from('apartments').insert([apartmentData]).select().single();
+  return error ? { success: false, error: error.message } : { success: true, data };
+}
+
 export async function updateApartment(id: string, apartmentData: Partial<CreateApartmentDTO>) {
-  const { data, error } = await supabase
-    .from('apartments')
-    .update(apartmentData)
-    .eq('id', id)
-    .select()
+  const { data, error } = await supabase.from('apartments').update(apartmentData).eq('id', id).select().single();
+  return error ? { success: false, error: error.message } : { success: true, data };
+}
+
+// ==========================================
+// 5. 🪄 NOUVEAU : POUR LE DASHBOARD (Filtré)
+// ==========================================
+export async function getAdminApartments(): Promise<Apartment[]> {
+  // 1. Savoir qui est connecté
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return [];
+
+  // 2. Connaître son rôle
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', session.user.id)
     .single();
 
-  if (error) {
-    console.error('Erreur lors de la modification du bien :', error.message);
-    return { success: false, error: error.message };
+  // 3. Préparer la requête
+  let query = supabase
+    .from('apartments')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  // 4. FILTRE MAGIQUE : Si c'est un propriétaire, il ne voit que SES biens
+  if (profile?.role === 'owner') {
+    query = query.eq('owner_id', session.user.id);
   }
-  
-  return { success: true, data };
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('Erreur Supabase :', error.message);
+    return [];
+  }
+  return data || [];
 }

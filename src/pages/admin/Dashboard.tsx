@@ -3,13 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Home as HomeIcon, CalendarCheck, TrendingUp, Plus, Clock, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
-import { getAdminBookings, updateBookingStatus, type Booking } from '@/services/booking';
+import { getAdminBookings, confirmBooking, cancelBooking, type Booking } from '@/services/booking';
+import { getAdminApartments } from '@/services/apartment'; // 👈 On utilise la NOUVELLE fonction filtrée
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 
 export default function Dashboard() {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [apartmentsCount, setApartmentsCount] = useState(0); // 👈 Nouvel état pour les biens
   const [isLoading, setIsLoading] = useState(true);
   
   // États pour la modale de gestion
@@ -17,35 +19,47 @@ export default function Dashboard() {
   const [isManageDialogOpen, setIsManageDialogOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
- // ON EMBARQUE TOUT DANS LE USE-EFFECT
+  // ON EMBARQUE TOUT DANS LE USE-EFFECT
   useEffect(() => {
     async function fetchDashboardData() {
       setIsLoading(true);
-      const data = await getAdminBookings();
-      setBookings(data);
+      // 🪄 On charge les réservations ET les appartements en même temps (filtrés selon le rôle)
+      const [bookingsData, apartmentsData] = await Promise.all([
+        getAdminBookings(),
+        getAdminApartments() // 👈 C'EST ICI LA MAGIE !
+      ]);
+      
+      setBookings(bookingsData);
+      setApartmentsCount(apartmentsData.length); // 👈 On compte le vrai nombre de biens autorisés
       setIsLoading(false);
     }
     
     fetchDashboardData();
   }, []);
 
-  // Fonction de décision (Accepter / Refuser)
+  // 🪄 Fonction de décision mise à jour avec le système de blocage de dates !
   const handleStatusChange = async (newStatus: 'confirmed' | 'cancelled') => {
     if (!selectedBooking) return;
     setIsUpdating(true);
 
-    const result = await updateBookingStatus(selectedBooking.id, newStatus);
-    
-    setIsUpdating(false);
-
-    if (result.success) {
-      toast.success(newStatus === 'confirmed' ? "Réservation confirmée !" : "Réservation annulée.");
+    try {
+      if (newStatus === 'confirmed') {
+        await confirmBooking(selectedBooking);
+        toast.success("Réservation confirmée et calendrier bloqué !");
+      } else {
+        await cancelBooking(selectedBooking.id);
+        toast.success("Réservation annulée.");
+      }
+      
       setIsManageDialogOpen(false);
       // On rafraîchit la liste silencieusement
       const updatedData = await getAdminBookings();
       setBookings(updatedData);
-    } else {
+    } catch (error) {
+      console.error(error);
       toast.error("Erreur lors de la mise à jour.");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -93,8 +107,11 @@ export default function Dashboard() {
             <HomeIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-light">1</div>
-            <p className="text-xs text-muted-foreground mt-2">Appartement Premium</p>
+            {/* 🪄 AFFICHAGE DYNAMIQUE DU NOMBRE D'APPARTEMENTS */}
+            <div className="text-4xl font-light">{apartmentsCount}</div>
+            <p className="text-xs text-muted-foreground mt-2">
+              {apartmentsCount > 1 ? 'Appartements publiés' : 'Appartement publié'}
+            </p>
           </CardContent>
         </Card>
 

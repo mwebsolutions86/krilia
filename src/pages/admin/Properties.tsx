@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -6,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { uploadAndCompressImage } from '@/services/storage';
-import { createApartment, updateApartment, getActiveApartments, type Apartment } from '@/services/apartment';
+import { createApartment, updateApartment, getActiveApartments, type Apartment, type CreateApartmentDTO } from '@/services/apartment';
 import { translatePropertySecurely } from '@/services/ai';
 import { 
   Loader2, UploadCloud, Edit, Plus, X, Star, Sparkles 
@@ -15,19 +16,18 @@ import { toast } from 'sonner';
 
 export default function Properties() {
   const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [owners, setOwners] = useState<{ id: string; full_name: string }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // ÉTATS DES CHAMPS (FR)
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   const [amenitiesStr, setAmenitiesStr] = useState('');
   
-  // ÉTATS DES TRADUCTIONS (EN / AR)
   const [titleEn, setTitleEn] = useState('');
   const [titleAr, setTitleAr] = useState('');
   const [locationEn, setLocationEn] = useState('');
@@ -39,6 +39,7 @@ export default function Properties() {
 
   const [price, setPrice] = useState('');
   const [isActive, setIsActive] = useState(true);
+  const [selectedOwnerId, setSelectedOwnerId] = useState('');
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
@@ -46,11 +47,19 @@ export default function Properties() {
     async function loadInitialData() {
       const data = await getActiveApartments();
       setApartments(data);
+
+      const { data: ownersData } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('role', 'owner');
+      
+      if (ownersData) {
+        setOwners(ownersData);
+      }
     }
     loadInitialData();
   }, []);
 
-  // 🪄 FONCTION DE TRADUCTION AUTOMATIQUE MIS À JOUR
   const handleAutoTranslate = async () => {
     if (!title || !description || !location || !amenitiesStr) {
       toast.error("Remplissez le titre, la description, la localisation ET les équipements (Fr) d'abord.");
@@ -85,7 +94,6 @@ export default function Properties() {
     setDescription(apt.description);
     setAmenitiesStr(apt.amenities && apt.amenities.length > 0 ? apt.amenities.join(', ') : '');
     
-    // Charger les traductions existantes
     setTitleEn(apt.title_en || '');
     setTitleAr(apt.title_ar || '');
     setLocationEn(apt.location_en || '');
@@ -93,11 +101,11 @@ export default function Properties() {
     setDescriptionEn(apt.description_en || '');
     setDescriptionAr(apt.description_ar || '');
     
-    // Charger les équipements traduits s'ils existent
     setAmenitiesEnStr(apt.amenities_en && apt.amenities_en.length > 0 ? apt.amenities_en.join(', ') : '');
     setAmenitiesArStr(apt.amenities_ar && apt.amenities_ar.length > 0 ? apt.amenities_ar.join(', ') : '');
 
     setPrice(apt.base_price_per_night.toString());
+    setSelectedOwnerId(apt.owner_id || '');
     setExistingImages(apt.images || []);
     setSelectedFiles([]);
     window.scrollTo({ top: document.querySelector('form')?.offsetTop || 0, behavior: 'smooth' });
@@ -109,6 +117,7 @@ export default function Properties() {
     setTitleEn(''); setTitleAr(''); setLocationEn(''); setLocationAr(''); setDescriptionEn(''); setDescriptionAr('');
     setAmenitiesEnStr(''); setAmenitiesArStr('');
     setPrice(''); 
+    setSelectedOwnerId('');
     setExistingImages([]); setSelectedFiles([]);
   };
 
@@ -154,8 +163,8 @@ export default function Properties() {
     const amenitiesEnArray = amenitiesEnStr.split(',').map(item => item.trim()).filter(Boolean);
     const amenitiesArArray = amenitiesArStr.split(',').map(item => item.trim()).filter(Boolean);
     
-    // On type explicitement en Omit<Apartment, 'id' | 'created_at'> pour satisfaire TypeScript
-    const apartmentData: Omit<Apartment, 'id' | 'created_at'> = {
+    // Correction finale des types : On force undefined à la place de string vide
+    const apartmentData = {
       title,
       title_en: titleEn,
       title_ar: titleAr,
@@ -170,14 +179,15 @@ export default function Properties() {
       amenities_en: amenitiesEnArray,
       amenities_ar: amenitiesArArray,
       images: imageUrls,
-      is_active: isActive
+      is_active: isActive,
+      owner_id: selectedOwnerId ? selectedOwnerId : undefined 
     };
 
     let result;
     if (editingId) {
-      result = await updateApartment(editingId, apartmentData);
+      result = await updateApartment(editingId, apartmentData as Partial<Apartment>);
     } else {
-      result = await createApartment(apartmentData);
+      result = await createApartment(apartmentData as unknown as CreateApartmentDTO);
     }
 
     setIsSubmitting(false);
@@ -234,7 +244,6 @@ export default function Properties() {
         </div>
 
         <div className="space-y-8">
-          {/* SECTION FRANÇAIS (SOURCE) */}
           <Card className="bg-secondary/10 border-primary/20 shadow-sm border-2">
             <CardContent className="space-y-6 pt-6">
               <div className="flex items-center justify-between">
@@ -273,9 +282,7 @@ export default function Properties() {
             </CardContent>
           </Card>
 
-          {/* SECTION TRADUCTIONS */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* ANGLAIS */}
             <Card className="border-border/50">
               <CardContent className="space-y-4 pt-6">
                 <h3 className="font-bold flex items-center gap-2"><span className="text-xl">🇬🇧</span> English</h3>
@@ -298,7 +305,6 @@ export default function Properties() {
               </CardContent>
             </Card>
 
-            {/* ARABE */}
             <Card className="border-border/50">
               <CardContent className="space-y-4 pt-6" dir="rtl">
                 <h3 className="font-bold flex items-center gap-2 justify-end">العربية <span className="text-xl">🇲🇦</span></h3>
@@ -322,15 +328,30 @@ export default function Properties() {
             </Card>
           </div>
 
-          {/* PARAMÈTRES TECHNIQUES */}
           <Card className="bg-card border-border/50 shadow-sm">
             <CardContent className="space-y-6 pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="price">Prix par nuit (Dhs)</Label>
                   <Input id="price" type="number" min="0" required value={price} onChange={e => setPrice(e.target.value)} />
                 </div>
-                <div className="space-y-2 flex flex-col justify-center pt-6">
+
+                <div className="space-y-2">
+                  <Label htmlFor="owner">Propriétaire du bien</Label>
+                  <select 
+                    id="owner"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    value={selectedOwnerId}
+                    onChange={(e) => setSelectedOwnerId(e.target.value)}
+                  >
+                    <option value="">-- Aucun (Krilia Agency) --</option>
+                    {owners.map(o => (
+                      <option key={o.id} value={o.id}>{o.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2 flex flex-col justify-center md:pt-6">
                   <div className="flex items-center space-x-2">
                     <Switch id="active" checked={isActive} onCheckedChange={setIsActive} />
                     <Label htmlFor="active">Annonce visible</Label>

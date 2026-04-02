@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Lock, Loader2 } from 'lucide-react';
+import {  Loader2, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Login() {
@@ -26,7 +26,7 @@ export default function Login() {
     setIsLoading(false);
 
     if (error) {
-      toast.error("Accès refusé", { description: "Identifiants incorrects." });
+      toast.error("Accès refusé", { description: "Email ou mot de passe incorrect." });
     } else {
       toast.success("Bienvenue", { description: "Authentification réussie." });
       navigate('/admin');
@@ -39,12 +39,12 @@ export default function Login() {
       
       <Card className="w-full max-w-md relative z-10 bg-card/80 backdrop-blur-xl border-border/50 shadow-2xl">
         <CardHeader className="space-y-3 text-center pb-6">
-          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-2 border border-primary/20">
-            <Lock className="w-6 h-6 text-primary" />
+          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-2 border border-primary/20 shadow-[0_0_30px_rgba(var(--primary),0.2)]">
+            <KeyRound className="w-8 h-8 text-primary" />
           </div>
-          <CardTitle className="font-serif text-3xl tracking-tight">Accès Sécurisé</CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Espace réservé à l'administration Mazouz
+          <CardTitle className="font-serif text-3xl tracking-tight">Espace Partenaire</CardTitle>
+          <CardDescription className="text-muted-foreground text-base">
+            Connectez-vous pour gérer vos réservations et vos biens.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -55,10 +55,10 @@ export default function Login() {
                 id="email" 
                 type="email" 
                 required 
-                placeholder="admin@mazouz.com"
+                placeholder="votre@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-background/50 border-border/50"
+                className="bg-background/50 border-border/50 py-6 text-lg"
               />
             </div>
             <div className="space-y-2">
@@ -67,13 +67,14 @@ export default function Login() {
                 id="password" 
                 type="password" 
                 required 
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-background/50 border-border/50"
+                className="bg-background/50 border-border/50 py-6 text-lg"
               />
             </div>
-            <Button type="submit" className="w-full py-6 text-base bg-primary text-primary-foreground hover:opacity-90" disabled={isLoading}>
-              {isLoading ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Vérification...</> : "Déverrouiller l'accès"}
+            <Button type="submit" className="w-full py-6 text-lg bg-primary text-primary-foreground hover:opacity-90 shadow-lg mt-4" disabled={isLoading}>
+              {isLoading ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Connexion...</> : "Accéder à mon espace"}
             </Button>
           </form>
         </CardContent>

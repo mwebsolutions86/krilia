@@ -4,32 +4,33 @@ import { Toaster } from '@/components/ui/sonner';
 // Layouts & Protection
 import PublicLayout from '@/layouts/PublicLayout';
 import AdminLayout from '@/layouts/AdminLayout';
-import ProtectedRoute from '@/components/shared/ProtectedRoute'; // <-- NOUVEAU
+import ProtectedRoute from '@/components/shared/ProtectedRoute';
+import ScrollToTop from '@/components/shared/ScrollToTop'; // 👈 NOUVEL IMPORT
 
 // Pages
 import Home from '@/pages/public/Home';
 import ApartmentPage from '@/pages/public/Apartment';
-import Login from '@/pages/auth/Login'; // <-- NOUVEAU
+import Login from '@/pages/auth/Login';
 import Dashboard from '@/pages/admin/Dashboard';
 import Properties from '@/pages/admin/Properties';
 import PropertiesList from '@/pages/public/PropertiesList';
 import Agency from '@/pages/public/Agency';
+import Bookings from '@/pages/admin/Bookings';
+import Owners from '@/pages/admin/Owners';
 
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop /> {/* 👈 MAGIE : Remonte en haut à chaque changement de page */}
+      
       <Routes>
         {/* ROUTES PUBLIQUES (Ouvertes à tous) */}
         <Route element={<PublicLayout />}>
           <Route path="/" element={<Home />} />
+          <Route path="/apartments" element={<PropertiesList />} /> 
+          <Route path="/agency" element={<Agency />} />
           <Route path="/apartment/:id" element={<ApartmentPage />} />
         </Route>
-        <Route element={<PublicLayout />}>
-  <Route path="/" element={<Home />} />
-  <Route path="/apartments" element={<PropertiesList />} /> 
-  <Route path="/agency" element={<Agency />} />
-  <Route path="/apartment/:id" element={<ApartmentPage />} />
-</Route>
 
         {/* PAGE DE CONNEXION (Indépendante des layouts) */}
         <Route path="/login" element={<Login />} />
@@ -39,6 +40,8 @@ export default function App() {
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="properties" element={<Properties />} />
+            <Route path="bookings" element={<Bookings />} />
+            <Route path="owners" element={<Owners />} />
           </Route>
         </Route>
 

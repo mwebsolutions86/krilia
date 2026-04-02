@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { getApartmentById, type Apartment } from '@/services/apartment';
+import { getApartmentById, getBlockedDates, type Apartment } from '@/services/apartment'; // 👈 getBlockedDates ajouté
 import { createBooking } from '@/services/booking';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,6 +25,7 @@ export default function ApartmentPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [mainImageUrl, setMainImageUrl] = useState<string | null>(null);
+  const [blockedDates, setBlockedDates] = useState<{ start_date: string; end_date: string }[]>([]);
   
   const [date, setDate] = useState<DateRange | undefined>({
     from: new Date(),
@@ -52,17 +53,42 @@ export default function ApartmentPage() {
   };
 
   useEffect(() => {
-    async function fetchAppartement() {
+    async function fetchData() {
       if (!id) return;
+      
+      // 1. Récupérer l'appartement
       const data = await getApartmentById(id);
       setApartment(data);
       if (data && data.images.length > 0) {
         setMainImageUrl(data.images[0]);
       }
+
+      // 2. Récupérer les dates indisponibles pour ce bien
+      const dates = await getBlockedDates(id);
+      setBlockedDates(dates);
+
       setIsLoading(false);
     }
-    fetchAppartement();
+    fetchData();
   }, [id]);
+
+  // 🪄 LOGIQUE DE DÉSACTIVATION DES DATES SUR LE CALENDRIER
+  const isDateDisabled = (d: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // 1. Bloquer dates passées
+    if (d < today) return true;
+
+    // 2. Bloquer dates confirmées en BDD
+    return blockedDates.some(range => {
+      const start = new Date(range.start_date);
+      const end = new Date(range.end_date);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+      return d >= start && d <= end;
+    });
+  };
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center">{t('apartment.loading', 'Chargement...')}</div>;
   if (!apartment) return <div className="min-h-screen flex items-center justify-center">{t('apartment.not_found', 'Bien introuvable.')}</div>;
@@ -70,7 +96,7 @@ export default function ApartmentPage() {
   const days = date?.from && date?.to ? differenceInDays(date.to, date.from) : 0;
   const totalPrice = days > 0 ? days * apartment.base_price_per_night : 0;
 
-  const handleBookingSubmit = async (e: React.FormEvent) => {
+ const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!date?.from || !date?.to || !id) return;
 
@@ -89,11 +115,26 @@ export default function ApartmentPage() {
     setIsSubmitting(false);
 
     if (result.success) {
-      toast.success(t('apartment.toast.success_title', 'Demande envoyée avec succès !'), {
-        description: t('apartment.toast.success_desc', 'Nous vous contacterons très vite pour confirmer.'),
+      toast.success(t('apartment.toast.success_title', 'Demande enregistrée !'), {
+        description: t('apartment.toast.success_desc', 'Ouverture de WhatsApp en cours...'),
       });
       setIsDialogOpen(false);
-      setTimeout(() => navigate('/'), 2000);
+
+      // 🪄 MAGIE WHATSAPP : Nettoyage du numéro et création du lien
+      const cleanPhone = (result.ownerPhone || '').replace(/[^0-9]/g, ''); 
+      
+      const message = `Bonjour, je viens de faire une demande de réservation pour le bien "${result.aptTitle}" du ${format(date.from, 'dd/MM/yyyy')} au ${format(date.to, 'dd/MM/yyyy')} via l'agence Krilia.\n\nVoici mes coordonnées :\nNom : ${guestName}\nTéléphone : ${guestPhone}\n\nPouvez-vous me confirmer la disponibilité ?`;
+      
+      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+
+      // 1. Lance l'ouverture de WhatsApp (Nouvel onglet sur PC / Ouvre l'App sur Mobile)
+      window.open(whatsappUrl, '_blank');
+
+      // 2. Redirige l'onglet actuel vers l'accueil avec un mini-délai pour ne pas bloquer l'ouverture de l'App sur mobile
+      setTimeout(() => {
+        navigate('/');
+      }, 500); 
+
     } else {
       toast.error(t('apartment.toast.error_title', 'Erreur lors de la réservation'), {
         description: t('apartment.toast.error_desc', 'Veuillez réessayer ou nous contacter directement.'),
@@ -149,7 +190,6 @@ export default function ApartmentPage() {
           <div className="pt-6 border-t border-border/50">
             <h3 className="text-xl font-serif mb-4">{t('apartment.included_amenities', 'Équipements inclus')}</h3>
             <ul className="grid grid-cols-2 gap-4">
-              {/* 👈 C'EST ICI LA MAGIE : On utilise getLocalizedAmenities */}
               {getLocalizedAmenities(apartment).map((amenity, index) => (
                 <li key={index} className="flex items-center gap-2 text-muted-foreground">
                   <Check className="w-4 h-4 text-primary" /> {amenity}
@@ -159,7 +199,7 @@ export default function ApartmentPage() {
           </div>
         </div>
 
-        {/* Moteur de réservation (inchangé) */}
+        {/* Moteur de réservation */}
         <div className="relative">
           <div className="sticky top-28">
             <Card className="bg-card border-border/50 shadow-2xl">
@@ -170,7 +210,13 @@ export default function ApartmentPage() {
               </CardHeader>
               <CardContent className="pt-6 space-y-6">
                 <div className="flex justify-center border border-border/50 rounded-lg p-2 bg-background">
-                  <Calendar mode="range" selected={date} onSelect={setDate} numberOfMonths={1} disabled={(d: Date) => d < new Date(new Date().setHours(0, 0, 0, 0))} />
+                  <Calendar 
+                    mode="range" 
+                    selected={date} 
+                    onSelect={setDate} 
+                    numberOfMonths={1} 
+                    disabled={isDateDisabled} // 👈 ICI, le calendrier utilise la nouvelle fonction !
+                  />
                 </div>
                 {days > 0 ? (
                   <div className="bg-secondary/50 rounded-lg p-4 space-y-3">
